@@ -23,7 +23,6 @@ class Args:
 
     def __post_init__(self):
         self.source_dir = Path(self.source_dir)
-        self.logger = logging.getLogger()
 
     def validate(self):
         if not self.source_dir.exists():
@@ -31,8 +30,6 @@ class Args:
 
         if not self.source_dir.is_dir():
             raise ValueError(f"Source directory {self.source_dir} is not a directory")
-
-        self.logger.info(f"Using source directory {self.source_dir}")
 
         if not self.api_key:
             raise ValueError("API Key is required")
@@ -49,6 +46,8 @@ class Main:
         filetypes: dict[Path, FileType] = {}
         results: dict[Path, Record] = {}
         dupes: dict[str, Path] = {}
+
+        self.logger.info(f"Using source directory {self.args.source_dir}")
 
         for path, content, ftype in self.loader.load():
             hash = hashlib.sha256(content).hexdigest()
@@ -77,7 +76,7 @@ class Main:
                 else:
                     self.logger.info(f"Skipped renaming {file}")
 
-        csv = "\n".join([str(record) for record in results.values()])
+        csv = "\n".join([str(record) for record in results.values()]) + "\n"
 
         if self.args.write:
             self.logger.info("Writing records to file")
