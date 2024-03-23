@@ -1,5 +1,5 @@
 import json
-from pathlib import Path
+from contextlib import contextmanager
 
 import requests
 from datetime import date as pydate
@@ -24,14 +24,32 @@ class Reader:
 
     def __init__(self, api_key: str):
         self.api_key = api_key
+        self.__session = None
 
     @property
     def headers(self) -> dict:
         return {"accept": "application/json", "apikey": self.api_key}
 
+    @contextmanager
+    def session(self):
+        self.__session = requests.Session()
+
+        try:
+            yield self
+        finally:
+            self.__session.close()
+
     def process_receipt(self, filename: str, file: bytes, filetype: FileType) -> Record:
         files = {"file": (filename, file, f"image/{filetype}")}
-        response = requests.post(self.url, data=self.payload, headers=self.headers, files=files)
+        if self.__session:
+            response = self.__session.post(
+                self.url, data=self.payload, headers=self.headers, files=files
+            )
+        else:
+            response = requests.post(
+                self.url, data=self.payload, headers=self.headers, files=files
+            )
+
         if response.status_code != 200:
             raise Exception(f"Failed to process receipt: {response.text}")
 

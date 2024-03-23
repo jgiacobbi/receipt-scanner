@@ -20,6 +20,9 @@ class Args:
     api_key: str
     rename: bool
     write: bool
+    confidence: float
+    reconcile: bool
+    missing: bool
 
     def __post_init__(self):
         self.source_dir = Path(self.source_dir)
@@ -41,6 +44,28 @@ class Main:
         self.reader = Reader(args.api_key)
         self.loader = Loader(args.source_dir)
         self.logger = logging.getLogger()
+        self.__known_records: dict[str, Record] = {}
+
+    @property
+    def known_records(self) -> dict[str, Record]:
+        if not self.__known_records:
+            records_path = self.args.source_dir / "records.csv"
+            if records_path.exists():
+                with records_path.open() as f:
+                    self.__known_records = Record.parse_csv(f.read())
+                    self.__known_records = {
+                        record.filename: record for record in self.__known_records
+                    }
+        return self.__known_records
+
+    def read_low_confidence_records(self) -> set[str]:
+        return set(k for k, v in self.known_records.items() if v.confidence < self.args.confidence)
+
+    def read_missing_records(self) -> set[str]:
+        file_list = set(
+            Path(file.name).stem for file in self.args.source_dir.iterdir() if file.is_file()
+        )
+        return file_list - set(self.known_records.keys())
 
     def run(self):
         filetypes: dict[Path, FileType] = {}
@@ -48,30 +73,49 @@ class Main:
         dupes: dict[str, Path] = {}
 
         self.logger.info(f"Using source directory {self.args.source_dir}")
-
-        for path, content, ftype in self.loader.load():
-            hash = hashlib.sha256(content).hexdigest()
-            if hash in dupes:
-                self.logger.warning(f"Skipping {path} as it is a duplicate of {dupes[hash]}")
-                continue
+        if self.args.reconcile:
+            records = self.read_low_confidence_records()
+            if records:
+                self.logger.info(f"Reconciling with {records}")
+                self.loader.filter |= records
             else:
-                dupes[hash] = path
+                self.logger.info("No low confidence records found")
+                return
 
-            try:
-                results[path] = self.reader.process_receipt(path.name, content, ftype)
-                filetypes[path] = ftype
-            except Exception as e:
-                self.logger.error(f"Failed to process {path.name}: {e}")
-                continue
+        elif self.args.missing:
+            records = self.read_missing_records()
+            if records:
+                self.logger.info(f"Processing only missing records {records}")
+                self.loader.filter |= records
+            else:
+                self.logger.info("No missing records found")
+                return
+
+        with self.reader.session():
+            for path, content, ftype in self.loader.load():
+                hash = hashlib.sha256(content).hexdigest()
+                if hash in dupes:
+                    self.logger.warning(f"Skipping {path} as it is a duplicate of {dupes[hash]}")
+                    continue
+                else:
+                    dupes[hash] = path
+
+                try:
+                    results[path] = self.reader.process_receipt(path.name, content, ftype)
+                    filetypes[path] = ftype
+                except Exception as e:
+                    self.logger.error(f"Failed to process {path.name}: {e}")
+                    continue
 
         if self.args.rename and results:
             self.logger.info("Renaming files")
             for file, record in results.items():
-                if record.confidence < 0.8:
+                if record.confidence < self.args.confidence:
                     self.logger.warning(
                         f"Not renaming {file}, low confidence: {record.confidence}"
                     )
                 else:
+                    record.generate_new_filename()
                     newpath = file.with_name(record.filename).with_suffix(filetypes[file].suffix())
 
                     if newpath != file:
@@ -80,7 +124,7 @@ class Main:
                     else:
                         self.logger.info(f"Skipped renaming {file}")
 
-        csv = "\n".join([str(record) for record in results.values()]) + "\n"
+        csv = self.generate_csv(results.values())
 
         if self.args.write:
             self.logger.info("Writing records to file")
@@ -90,6 +134,24 @@ class Main:
             self.logger.info("Records:")
             print()
             print(csv)
+
+    def generate_csv(self, records: list[Record]) -> str:
+        final = []
+        if self.args.reconcile:
+            for record in records:
+                if existing := self.known_records.get(record.filename):
+                    if existing.confidence < record.confidence:
+                        self.logger.info(f"Updating {existing} to {record}")
+                        final.append(record)
+                    else:
+                        final.append(existing)
+        elif self.args.missing:
+            final = list(self.known_records.values())
+            final.extend(records)
+        else:
+            final = records
+
+        return "\n".join([str(record) for record in final])
 
     @classmethod
     def get_api_key(cls) -> str:
@@ -109,6 +171,22 @@ class Main:
         )
         parser.add_argument(
             "--write", action="store_true", help="Write records to a file in the source directory"
+        )
+        parser.add_argument(
+            "--confidence",
+            default=0.5,
+            type=float,
+            help="Minimum confidence level to rename files",
+        )
+        parser.add_argument(
+            "--reconcile",
+            action="store_true",
+            help="Reconcile records with existing records.csv in the source directory",
+        )
+        parser.add_argument(
+            "--missing",
+            action="store_true",
+            help="Only process files that are not in records.csv",
         )
 
         args = Args(**vars(parser.parse_args(argv)))

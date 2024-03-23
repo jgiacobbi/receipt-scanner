@@ -11,10 +11,14 @@ class Loader:
     def __init__(self, source_dir: Path):
         self.source_dir = source_dir
         self.logger = logging.getLogger()
+        self.filter = set()
 
     def load(self) -> Iterable[tuple[Path, bytes, FileType]]:
         self.logger.info(f"Loading images from {self.source_dir}")
         for file in self.source_dir.iterdir():
+            if self.filter and file.name not in self.filter:
+                continue
+
             logline = f"{file}... "
 
             if not file.is_file():
