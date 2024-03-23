@@ -3,6 +3,7 @@ from enum import StrEnum
 
 class FileType(StrEnum):
     UNKNOWN = "unknown"
+    CSV = "csv"
     PDF = "pdf"
     JPG = "jpg"
     PNG = "png"

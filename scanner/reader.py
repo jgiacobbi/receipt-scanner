@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import requests
+from datetime import date as pydate
 from dateutil.parser import parse as date_parse
 
 from .enum import FileType
@@ -36,9 +37,26 @@ class Reader:
 
         response = json.loads(response.text)
 
-        tax_amount = response["taxAmount"]["data"]
-        total_amount = response["totalAmount"]["data"]
-        merchant_name = response["merchantName"]["data"]
-        date = date_parse(response["date"]["data"]).date()
+        try:
+            tax_amount = response["taxAmount"]["data"]
+        except:
+            tax_amount = float("nan")
 
-        return Record(date, merchant_name, total_amount, tax_amount)
+        try:
+            total_amount = response["totalAmount"]["data"]
+        except:
+            total_amount = float("nan")
+
+        try:
+            merchant_name = response["merchantName"]["data"]
+        except:
+            merchant_name = "Unknown"
+
+        try:
+            date = date_parse(response["date"]["data"]).date()
+        except:
+            date = pydate.fromisoformat("0001-01-01")
+
+        confidence = response["confidenceLevel"]
+
+        return Record(date, merchant_name, total_amount, tax_amount, confidence, filename)

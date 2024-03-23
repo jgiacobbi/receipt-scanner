@@ -23,10 +23,15 @@ class Loader:
                 continue
 
             filetype = self.guess_file_type(file)
+            if filetype == FileType.CSV:
+                continue
+
             if filetype == FileType.UNKNOWN:
                 logline += "unknown file type, skipping"
                 self.logger.info(logline)
                 continue
+
+            self.logger.info(logline)
 
             yield file, file.read_bytes(), filetype
 

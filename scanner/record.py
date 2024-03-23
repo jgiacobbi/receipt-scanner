@@ -11,6 +11,11 @@ class Record:
     name: str
     total: float
     tax: float
+    confidence: float
+    filename: str = None
+
+    def __post_init__(self):
+        self.generate_filename()
 
     def short_date(self) -> str:
         return self.date.strftime("%m%d%Y")
@@ -18,19 +23,35 @@ class Record:
     def short_name(self) -> str:
         return self.name.strip().replace(" ", "").lower()
 
-    def new_filename(self, old_filename: str) -> str:
-        parts = old_filename.split("_")
+    def needs_new_filename(self) -> bool:
+        if self.confidence < 0.8:
+            return False
+
+        if self.filename is None:
+            return True
+
+        parts = self.filename.split("_")
         if len(parts) != 3:
-            return self.filename()
+            return True
 
         date, name, _ = parts
-        if date == self.short_date() and name == self.short_name():
-            return old_filename
+        if not (date == self.short_date() and name == self.short_name()):
+            return True
 
-        return self.filename()
+        return False
 
-    def filename(self) -> str:
-        return f"{self.short_date()}_{self.short_name()}_{uuid.uuid4().hex[:8]}"
+    def generate_filename(self):
+        if self.needs_new_filename():
+            self.filename = f"{self.short_date()}_{self.short_name()}_{uuid.uuid4().hex[:8]}"
 
     def __str__(self) -> str:
-        return ",".join([str(self.date), self.name, str(self.total), str(self.tax)])
+        return ",".join(
+            [
+                str(self.date),
+                self.name,
+                str(self.total),
+                str(self.tax),
+                str(self.confidence),
+                self.filename,
+            ]
+        )

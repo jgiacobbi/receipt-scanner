@@ -67,14 +67,18 @@ class Main:
         if self.args.rename and results:
             self.logger.info("Renaming files")
             for file, record in results.items():
-                newname = record.new_filename(file.stem)
-                newpath = file.with_name(newname).with_suffix(filetypes[file].suffix())
-
-                if newpath != file:
-                    file.rename(newpath)
-                    self.logger.info(f"Renamed {file} to {newpath}")
+                if record.confidence < 0.8:
+                    self.logger.warning(
+                        f"Not renaming {file}, low confidence: {record.confidence}"
+                    )
                 else:
-                    self.logger.info(f"Skipped renaming {file}")
+                    newpath = file.with_name(record.filename).with_suffix(filetypes[file].suffix())
+
+                    if newpath != file:
+                        file.rename(newpath)
+                        self.logger.info(f"Renamed {file} to {newpath}")
+                    else:
+                        self.logger.info(f"Skipped renaming {file}")
 
         csv = "\n".join([str(record) for record in results.values()]) + "\n"
 
