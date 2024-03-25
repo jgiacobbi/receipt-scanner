@@ -1,18 +1,21 @@
 from dataclasses import dataclass
 from datetime import date as pydate
 import uuid
+from .enum import FileType
+from typing import Iterable, Self
 
 
 @dataclass
 class Record:
     """A transaction record"""
 
-    date: pydate
-    name: str
-    total: float
-    tax: float
-    confidence: float
-    filename: str = None
+    filename: str
+    filetype: FileType = None
+    date: pydate = None
+    name: str = None
+    total: float = None
+    tax: float = None
+    confidence: float = None
 
     def short_date(self) -> str:
         return self.date.strftime("%m%d%Y")
@@ -23,9 +26,6 @@ class Record:
     def needs_new_filename(self) -> bool:
         if self.confidence < 0.8:
             return False
-
-        if self.filename is None:
-            return True
 
         parts = self.filename.split("_")
         if len(parts) != 3:
@@ -39,7 +39,7 @@ class Record:
 
     def generate_new_filename(self):
         if self.needs_new_filename():
-            self.filename = f"{self.short_date()}_{self.short_name()}_{uuid.uuid4().hex[:8]}"
+            self.filename = f"{self.short_date()}_{self.short_name()}_{uuid.uuid4().hex[:8]}{self.filetype.suffix()}"
 
     def __format__(self) -> str:
         return f"({self.name}, {self.total}, {self.confidence})"
@@ -57,17 +57,28 @@ class Record:
         )
 
     @classmethod
-    def parse_csv(cls, csv: str):
-        return [cls.from_csv(line) for line in csv.strip().split("\n") if line.strip() != ""]
+    def header(cls) -> str:
+        return ",".join(["date", "name", "total", "tax", "confidence", "filename"])
+
+    @classmethod
+    def generate_csv(self, records: Iterable[Self]) -> str:
+        header = self.header()
+        return header + "\n" + "\n".join([str(record) for record in records])
+
+    @classmethod
+    def parse_csv(cls, csv: str) -> dict[str, Self]:
+        records = [cls.from_csv(line) for line in csv.strip().split("\n") if line.strip() != ""]
+        return {record.filename: record for record in records}
 
     @classmethod
     def from_csv(cls, line: str):
         date, name, total, tax, confidence, filename = line.strip().split(",")
         return cls(
+            filename,
+            FileType(filename.split(".")[-1]),
             pydate.fromisoformat(date),
             name,
             float(total),
             float(tax),
             float(confidence),
-            filename,
         )

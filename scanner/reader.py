@@ -5,7 +5,6 @@ import requests
 from datetime import date as pydate
 from dateutil.parser import parse as date_parse
 
-from .enum import FileType
 from .record import Record
 
 
@@ -39,8 +38,8 @@ class Reader:
         finally:
             self.__session.close()
 
-    def process_receipt(self, filename: str, file: bytes, filetype: FileType) -> Record:
-        files = {"file": (filename, file, f"image/{filetype}")}
+    def process_receipt(self, file: bytes, record: Record) -> Record:
+        files = {"file": (record.filename, file, f"image/{record.filetype}")}
         if self.__session:
             response = self.__session.post(
                 self.url, data=self.payload, headers=self.headers, files=files
@@ -77,4 +76,10 @@ class Reader:
 
         confidence = response["confidenceLevel"]
 
-        return Record(date, merchant_name, total_amount, tax_amount, confidence, filename)
+        record.date = date
+        record.name = merchant_name
+        record.total = total_amount
+        record.tax = tax_amount
+        record.confidence = confidence
+
+        return record
