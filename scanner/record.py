@@ -37,18 +37,21 @@ class Record:
 
         return False
 
-    def generate_new_filename(self, confidence: float):
-        if self.needs_new_filename(confidence):
+    def generate_new_filename(self, confidence: float) -> bool:
+        new = self.needs_new_filename(confidence)
+        if new:
             self.filename = f"{self.short_date()}_{self.short_name()}_{uuid.uuid4().hex[:8]}{self.filetype.suffix()}"
 
-    def __format__(self) -> str:
-        return f"({self.name}, {self.total}, {self.confidence})"
+        return new
+
+    def __format__(self, _) -> str:
+        return f"({self.name}, {self.total}, {self.confidence}, {self.filename})"
 
     def __str__(self) -> str:
         return ",".join(
             [
                 str(self.date),
-                self.name,
+                str(self.name),
                 str(self.total),
                 str(self.tax),
                 str(self.confidence),

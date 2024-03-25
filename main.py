@@ -46,7 +46,12 @@ class Main:
         self.logger.info(f"Using source directory {self.args.source_dir}")
         self.logger.info(f"Found {len(self.scanner.known_records)} known records")
 
-        records = self.reader.run(self.args.source_dir, list(self.scanner.scan()))
+        records = list(self.scanner.scan())
+
+        for record in records:
+            self.logger.info(f"Scanned record {record}")
+
+        records = self.reader.run(self.args.source_dir, records)
 
         self.logger.info(f"Processed {len(records)} records")
 
@@ -58,16 +63,13 @@ class Main:
                         f"Not renaming {record.filename}, low confidence: {record.confidence}"
                     )
                 else:
-                    record.generate_new_filename(self.args.confidence)
-                    if self.args.write:
-                        file = self.args.source_dir / record.filename
-                        newpath = file.parent / record.filename
-
-                        if newpath != file:
-                            file.rename(newpath)
-                            self.logger.info(f"Renamed {file} to {newpath}")
-                        else:
-                            self.logger.info(f"Skipped renaming {file}")
+                    original = self.args.source_dir / record.filename
+                    if record.generate_new_filename(self.args.confidence) and self.args.write:
+                        new = self.args.source_dir / record.filename
+                        original.rename(new)
+                        self.logger.info(f"Renamed {original} to {new}")
+                    else:
+                        self.logger.info(f"Skipped renaming {original}")
 
         csv = self.generate_csv(records)
 
