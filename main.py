@@ -1,5 +1,4 @@
 #!/usr/bin/env python3.12
-import hashlib
 import json
 import logging
 import logging.config
@@ -11,7 +10,7 @@ from typing import Self
 
 from dotenv import find_dotenv, load_dotenv
 
-from scanner import FileType, Scanner, Reader, Record
+from scanner import Scanner, Client, Record
 
 
 @dataclass
@@ -39,53 +38,38 @@ class Args:
 class Main:
     def __init__(self, args: Args):
         self.args = args
-        self.reader = Reader(args.api_key)
+        self.reader = Client(args.api_key)
         self.scanner = Scanner(args.source_dir, args.confidence)
         self.logger = logging.getLogger()
 
     def run(self):
-        results: dict[Path, Record] = {}
-        dupes: dict[str, Path] = {}
-
         self.logger.info(f"Using source directory {self.args.source_dir}")
         self.logger.info(f"Found {len(self.scanner.known_records)} known records")
 
-        with self.reader.session():
-            for filename, record in self.scanner.scan():
-                path = self.args.source_dir / filename
-                content = path.read_bytes()
-                hash = hashlib.sha256(content).hexdigest()
-                if hash in dupes:
-                    self.logger.warning(f"Skipping {path} as it is a duplicate of {dupes[hash]}")
-                    continue
-                else:
-                    dupes[hash] = path
+        records = self.reader.run(self.args.source_dir, list(self.scanner.scan()))
 
-                try:
-                    results[path] = self.reader.process_receipt(content, record)
-                except Exception as e:
-                    self.logger.error(f"Failed to process {path.name}: {e}")
-                    continue
+        self.logger.info(f"Processed {len(records)} records")
 
-        if self.args.rename and results:
+        if self.args.rename and records:
             self.logger.info("Renaming files")
-            for file, record in results.items():
+            for record in records:
                 if record.confidence < self.args.confidence:
                     self.logger.warning(
-                        f"Not renaming {file}, low confidence: {record.confidence}"
+                        f"Not renaming {record.filename}, low confidence: {record.confidence}"
                     )
                 else:
                     record.generate_new_filename(self.args.confidence)
-                    newpath = file.parent / record.filename
+                    if self.args.write:
+                        file = self.args.source_dir / record.filename
+                        newpath = file.parent / record.filename
 
-                    if newpath != file:
-                        file.rename(newpath)
-                        self.logger.info(f"Renamed {file} to {newpath}")
-                    else:
-                        self.logger.info(f"Skipped renaming {file}")
+                        if newpath != file:
+                            file.rename(newpath)
+                            self.logger.info(f"Renamed {file} to {newpath}")
+                        else:
+                            self.logger.info(f"Skipped renaming {file}")
 
-        self.logger.info(f"Processed {len(results)} records")
-        csv = self.generate_csv(results.values())
+        csv = self.generate_csv(records)
 
         if self.args.write:
             self.logger.info("Writing records to file")

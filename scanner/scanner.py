@@ -25,7 +25,7 @@ class Scanner:
 
         return self.__known_records
 
-    def scan(self) -> Iterable[tuple[str, Record]]:
+    def scan(self) -> Iterable[Record]:
         """Scan for files that need to be processed
 
         Returns:
@@ -58,10 +58,10 @@ class Scanner:
                 else:
                     logline += f"known record with low confidence ({known.confidence}), processing"
                     self.logger.info(logline)
-                    yield file.name, known
+                    yield known
             else:
                 self.logger.info(logline)
-                yield file.name, Record(file.name, filetype)
+                yield Record(file.name, filetype)
 
     def guess_file_type(self, file: Path) -> FileType:
         filetype = FileType(file.suffix[1:])

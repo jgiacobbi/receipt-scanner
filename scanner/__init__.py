@@ -1,4 +1,4 @@
 from .enum import FileType
 from .scanner import Scanner
-from .reader import Reader
+from .client import Client
 from .record import Record
