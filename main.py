@@ -75,7 +75,7 @@ class Main:
                         f"Not renaming {file}, low confidence: {record.confidence}"
                     )
                 else:
-                    record.generate_new_filename()
+                    record.generate_new_filename(self.args.confidence)
                     newpath = file.parent / record.filename
 
                     if newpath != file:
@@ -84,6 +84,7 @@ class Main:
                     else:
                         self.logger.info(f"Skipped renaming {file}")
 
+        self.logger.info(f"Processed {len(results)} records")
         csv = self.generate_csv(results.values())
 
         if self.args.write:

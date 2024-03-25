@@ -23,8 +23,8 @@ class Record:
     def short_name(self) -> str:
         return self.name.strip().replace(" ", "").lower()
 
-    def needs_new_filename(self) -> bool:
-        if self.confidence < 0.8:
+    def needs_new_filename(self, confidence: float) -> bool:
+        if self.confidence < confidence:
             return False
 
         parts = self.filename.split("_")
@@ -37,8 +37,8 @@ class Record:
 
         return False
 
-    def generate_new_filename(self):
-        if self.needs_new_filename():
+    def generate_new_filename(self, confidence: float):
+        if self.needs_new_filename(confidence):
             self.filename = f"{self.short_date()}_{self.short_name()}_{uuid.uuid4().hex[:8]}{self.filetype.suffix()}"
 
     def __format__(self) -> str:
@@ -67,7 +67,11 @@ class Record:
 
     @classmethod
     def parse_csv(cls, csv: str) -> dict[str, Self]:
-        records = [cls.from_csv(line) for line in csv.strip().split("\n") if line.strip() != ""]
+        lines = csv.strip().split("\n")
+        if lines[0] != cls.header():
+            raise ValueError("Invalid CSV header")
+
+        records = [cls.from_csv(line) for line in lines[1:] if line.strip() != ""]
         return {record.filename: record for record in records}
 
     @classmethod
