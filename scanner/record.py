@@ -66,6 +66,7 @@ class Record:
     @classmethod
     def generate_csv(self, records: Iterable[Self]) -> str:
         header = self.header()
+        records = sorted(records, key=lambda r: r.short_name())
         return header + "\n" + "\n".join([str(record) for record in records])
 
     @classmethod

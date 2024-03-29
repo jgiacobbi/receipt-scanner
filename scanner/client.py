@@ -86,7 +86,7 @@ class Client:
             date = pydate.fromisoformat("0001-01-01")
 
         try:
-            confidence = response["confidenceLevel"]
+            confidence = round(float(response["confidenceLevel"]), 2)
         except:
             confidence = 0.0
 
